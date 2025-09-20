@@ -1,10 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../models/user_model.dart';
+import 'notification_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
+  final NotificationService _notificationService = NotificationService();
   
   AuthService() {
     // Monitor database connection
@@ -62,19 +64,30 @@ class AuthService {
     String password
   ) async {
     try {
+      print('🔐 Starting sign-in for: $email');
+      
       UserCredential result = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
       
+      print('✅ Firebase Auth sign-in successful');
+      print('User: ${result.user?.email} (${result.user?.uid})');
+      
       // Update user status to online
       if (result.user != null) {
+        print('🔄 Updating user status to online...');
         await _updateUserStatus(result.user!.uid, true);
+        print('✅ User status updated successfully');
       }
       
+      print('✅ Sign-in completed successfully');
       return result;
     } on FirebaseAuthException catch (e) {
-      print('Sign in error: ${e.message}');
+      print('❌ Firebase Auth sign-in error: ${e.code} - ${e.message}');
+      throw e;
+    } catch (e) {
+      print('❌ General sign-in error: $e');
       throw e;
     }
   }
@@ -82,13 +95,22 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     try {
+      print('🔓 Starting sign-out...');
+      
       // Update user status to offline
       if (currentUser != null) {
+        print('🔄 Updating user status to offline for: ${currentUser!.email}');
         await _updateUserStatus(currentUser!.uid, false);
+        print('✅ User status updated to offline');
       }
+      
+      print('🗿 Calling Firebase Auth sign-out...');
       await _auth.signOut();
+      print('✅ Firebase Auth sign-out completed successfully');
+      
     } catch (e) {
-      print('Sign out error: $e');
+      print('❌ Sign out error: $e');
+      rethrow;
     }
   }
 
@@ -177,6 +199,12 @@ class AuthService {
       
       // Add current user to friend's friends list
       await _database.child('users/${friend.uid}/friends').push().set(currentUid);
+      
+      // Send notification to the friend
+      await _notificationService.sendFriendAddedNotification(
+        friendUserId: friend.uid,
+        currentUserName: currentUserData?.displayName ?? currentUser!.displayName ?? 'Someone',
+      );
       
       print('Successfully added ${friend.displayName} as friend');
       return true;

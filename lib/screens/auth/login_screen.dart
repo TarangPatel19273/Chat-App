@@ -39,6 +39,19 @@ class _LoginScreenState extends State<LoginScreen> {
         _emailController.text.trim(),
         _passwordController.text,
       );
+      
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Welcome back! Redirecting to chats...'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      
+      // The AuthWrapper will automatically navigate to HomeScreen
     } on FirebaseAuthException catch (e) {
       String errorMessage = 'An error occurred. Please try again.';
       

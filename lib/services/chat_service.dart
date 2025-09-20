@@ -3,15 +3,24 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../models/message_model.dart';
 import '../models/user_model.dart';
+import 'notification_service.dart';
 
 class ChatService {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final NotificationService _notificationService = NotificationService();
   
   ChatService() {
-    // Keep important data synced
-    _database.child('users').keepSynced(true);
-    _database.child('chats').keepSynced(true);
+    // Keep important data synced (only on mobile platforms)
+    if (!kIsWeb) {
+      try {
+        _database.child('users').keepSynced(true);
+        _database.child('chats').keepSynced(true);
+        print('Database keepSynced enabled for mobile');
+      } catch (e) {
+        print('keepSynced not supported: $e');
+      }
+    }
   }
 
   // Send a message
@@ -60,6 +69,8 @@ class ChatService {
         currentUser.uid: true,
         receiverId: true,
       });
+      
+      // Message notifications disabled - only friend notifications enabled
       
       print('Message sent successfully with ID: ${messageRef.key}');
       
