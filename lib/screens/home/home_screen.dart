@@ -372,13 +372,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         // Chat content
         Expanded(
           child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _chatService.getChatList(),
+            stream: _chatService.getChatList().asBroadcastStream(),
             builder: (context, chatSnapshot) {
               return StreamBuilder<List<UserModel>>(
-                stream: _chatService.getFriendsStream(),
+                stream: _chatService.getFriendsStream().asBroadcastStream(),
                 builder: (context, friendsSnapshot) {
                   return StreamBuilder<List<GroupModel>>(
-                    stream: _groupService.getUserGroups(),
+                    stream: _groupService.getUserGroups().asBroadcastStream(),
                     builder: (context, groupsSnapshot) {
                       // Get chats data
                       List<Map<String, dynamic>> chats = [];
@@ -894,7 +894,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           // Groups content
           Expanded(
             child: StreamBuilder<List<GroupModel>>(
-              stream: _groupService.getUserGroups(),
+              stream: _groupService.getUserGroups().asBroadcastStream(),
               builder: (context, snapshot) {
           // Use cached data while loading or on error if we have cache
           List<GroupModel> groups = [];

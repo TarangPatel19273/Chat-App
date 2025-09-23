@@ -111,7 +111,7 @@ class _ChatScreenState extends State<ChatScreen> {
           // Messages List
           Expanded(
             child: StreamBuilder<List<MessageModel>>(
-              stream: _chatService.getMessages(widget.friend.uid),
+              stream: _chatService.getMessages(widget.friend.uid).asBroadcastStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());

@@ -42,7 +42,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyBD3uYecf3FBdVzsQC1ipQK5Hcjpnd3M-E',
-    appId: '1:668749596101:web:964b52e5e4f83f8f6a77ac',
+    appId: '1:668749596101:web:b10cd8da94f27f646a77ac',
     messagingSenderId: '668749596101',
     projectId: 'chat-app-1ca15',
     authDomain: 'chat-app-1ca15.firebaseapp.com',
@@ -51,8 +51,8 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBD3uYecf3FBdVzsQC1ipQK5Hcjpnd3M-E',
-    appId: '1:668749596101:android:964b52e5e4f83f8f6a77ac',
+    apiKey: 'AIzaSyCiSWeAmLCTqJSqbXOuBiEMcp3L7INPgQ4',
+    appId: '1:668749596101:android:b10cd8da94f27f646a77ac',
     messagingSenderId: '668749596101',
     projectId: 'chat-app-1ca15',
     databaseURL: 'https://chat-app-1ca15-default-rtdb.firebaseio.com',
@@ -61,7 +61,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBD3uYecf3FBdVzsQC1ipQK5Hcjpnd3M-E',
-    appId: '1:668749596101:ios:964b52e5e4f83f8f6a77ac',
+    appId: '1:668749596101:ios:b10cd8da94f27f646a77ac',
     messagingSenderId: '668749596101',
     projectId: 'chat-app-1ca15',
     databaseURL: 'https://chat-app-1ca15-default-rtdb.firebaseio.com',
@@ -71,7 +71,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBD3uYecf3FBdVzsQC1ipQK5Hcjpnd3M-E',
-    appId: '1:668749596101:ios:964b52e5e4f83f8f6a77ac',
+    appId: '1:668749596101:ios:b10cd8da94f27f646a77ac',
     messagingSenderId: '668749596101',
     projectId: 'chat-app-1ca15',
     databaseURL: 'https://chat-app-1ca15-default-rtdb.firebaseio.com',
@@ -81,7 +81,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions windows = FirebaseOptions(
     apiKey: 'AIzaSyBD3uYecf3FBdVzsQC1ipQK5Hcjpnd3M-E',
-    appId: '1:668749596101:web:964b52e5e4f83f8f6a77ac',
+    appId: '1:668749596101:web:b10cd8da94f27f646a77ac',
     messagingSenderId: '668749596101',
     projectId: 'chat-app-1ca15',
     authDomain: 'chat-app-1ca15.firebaseapp.com',

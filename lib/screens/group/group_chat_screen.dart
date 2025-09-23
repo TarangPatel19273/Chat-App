@@ -368,7 +368,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
           // Messages list
           Expanded(
             child: StreamBuilder<List<MessageModel>>(
-              stream: _groupService.getGroupMessages(widget.group.groupId),
+              stream: _groupService.getGroupMessages(widget.group.groupId).asBroadcastStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting && _isLoading) {
                   return const Center(child: CircularProgressIndicator());

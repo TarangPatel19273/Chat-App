@@ -12,10 +12,20 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Initialize Firebase - check if already initialized
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    if (e.toString().contains('duplicate-app')) {
+      print('Firebase already initialized, continuing...');
+      // Firebase is already initialized, continue
+    } else {
+      print('Firebase initialization error: $e');
+      rethrow;
+    }
+  }
   
   // Enable Firebase Realtime Database offline persistence
   try {
