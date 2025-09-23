@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
+import '../../providers/theme_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,6 +15,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _displayNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   
   bool _isEditing = false;
@@ -30,6 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     _displayNameController.dispose();
     _emailController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -47,6 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _currentUserData = userData;
           _displayNameController.text = userData.displayName;
           _emailController.text = userData.email;
+          _descriptionController.text = userData.description;
           _isLoading = false;
         });
       }
@@ -62,6 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _updateProfile() async {
     final newDisplayName = _displayNameController.text.trim();
+    final newDescription = _descriptionController.text.trim();
     
     if (newDisplayName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -85,6 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       print('Updating profile for user: ${currentUser.uid}');
       print('New display name: $newDisplayName');
+      print('New description: $newDescription');
 
       // Update Firebase Auth display name
       await currentUser.updateDisplayName(newDisplayName);
@@ -92,12 +98,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       
       // Update in Firebase Realtime Database
       final authService = Provider.of<AuthService>(context, listen: false);
-      await authService.updateUserProfile(currentUser.uid, newDisplayName);
+      await authService.updateUserProfile(currentUser.uid, newDisplayName, newDescription);
       
       // Update local state
       if (_currentUserData != null) {
         setState(() {
-          _currentUserData = _currentUserData!.copyWith(displayName: newDisplayName);
+          _currentUserData = _currentUserData!.copyWith(
+            displayName: newDisplayName,
+            description: newDescription,
+          );
           _isEditing = false;
           _isLoading = false;
         });
@@ -209,7 +218,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: Colors.grey[800],
+                              color: Theme.of(context).brightness == Brightness.dark 
+                                  ? Colors.white 
+                                  : Colors.grey[800],
                             ),
                           ),
                           const SizedBox(height: 24),
@@ -220,6 +231,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             controller: _displayNameController,
                             icon: Icons.person,
                             isEditable: _isEditing,
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Description Field
+                          _buildProfileField(
+                            label: 'Description',
+                            controller: _descriptionController,
+                            icon: Icons.description,
+                            isEditable: _isEditing,
+                            maxLines: 3,
+                            hintText: 'Tell us about yourself...',
                           ),
                           const SizedBox(height: 20),
 
@@ -250,6 +272,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Online Status
                           _buildStatusRow(),
+                          const SizedBox(height: 12),
+
+                          // Dark Mode Toggle
+                          _buildThemeToggleRow(),
                         ],
                       ),
                     ),
@@ -266,6 +292,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               setState(() {
                                 _isEditing = false;
                                 _displayNameController.text = _currentUserData?.displayName ?? '';
+                                _descriptionController.text = _currentUserData?.description ?? '';
                               });
                             },
                             child: const Text('Cancel'),
@@ -335,6 +362,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required TextEditingController controller,
     required IconData icon,
     required bool isEditable,
+    int maxLines = 1,
+    String? hintText,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -344,29 +373,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Colors.grey[600],
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.grey[300] 
+                : Colors.grey[600],
           ),
         ),
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           enabled: isEditable,
+          maxLines: maxLines,
+          style: TextStyle(
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.white 
+                : Colors.black,
+            fontSize: 16,
+          ),
           decoration: InputDecoration(
-            prefixIcon: Icon(icon),
+            hintText: isEditable ? hintText : null,
+            hintStyle: TextStyle(
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? Colors.grey[400] 
+                  : Colors.grey[600],
+            ),
+            prefixIcon: Icon(
+              icon,
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? Colors.grey[400] 
+                  : Colors.grey[600],
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? Colors.grey[600]! 
+                    : Colors.grey[300]!,
+              ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? Colors.grey[600]! 
+                    : Colors.grey[300]!,
+              ),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[200]!),
+              borderSide: BorderSide(
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? Colors.grey[700]! 
+                    : Colors.grey[200]!,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Colors.blue,
+                width: 2,
+              ),
             ),
             filled: true,
-            fillColor: isEditable ? Colors.white : Colors.grey[50],
+            fillColor: isEditable 
+                ? (Theme.of(context).brightness == Brightness.dark 
+                    ? Colors.grey[800] 
+                    : Colors.white)
+                : (Theme.of(context).brightness == Brightness.dark 
+                    ? Colors.grey[850] 
+                    : Colors.grey[50]),
           ),
         ),
       ],
@@ -374,21 +448,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildInfoRow(String label, String value, IconData icon) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        Icon(icon, size: 20, color: Colors.grey[600]),
+        Icon(icon, size: 20, color: isDark ? Colors.grey[400] : Colors.grey[600]),
         const SizedBox(width: 12),
         Text(
           '$label: ',
           style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: Colors.grey[600],
+            color: isDark ? Colors.grey[300] : Colors.grey[600],
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: TextStyle(color: Colors.grey[800]),
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.grey[800],
+            ),
           ),
         ),
       ],
@@ -396,6 +473,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatusRow() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
         Icon(Icons.circle, size: 20, color: Colors.green),
@@ -404,7 +482,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'Status: ',
           style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: Colors.grey[600],
+            color: isDark ? Colors.grey[300] : Colors.grey[600],
           ),
         ),
         Text(
@@ -415,6 +493,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildThemeToggleRow() {
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return Row(
+          children: [
+            Icon(
+              themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+              size: 20,
+              color: themeProvider.isDarkMode ? Colors.purple : Colors.orange,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Theme: ',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: themeProvider.isDarkMode ? Colors.grey[300] : Colors.grey[600],
+              ),
+            ),
+            Expanded(
+              child: Text(
+                themeProvider.isDarkMode ? 'Dark Mode' : 'Light Mode',
+                style: TextStyle(
+                  color: themeProvider.isDarkMode ? Colors.purple : Colors.orange,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Switch(
+              value: themeProvider.isDarkMode,
+              onChanged: (value) {
+                themeProvider.toggleTheme();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Switched to ${value ? "Dark" : "Light"} Mode!',
+                    ),
+                    duration: const Duration(seconds: 1),
+                    backgroundColor: value ? Colors.grey[800] : Colors.blue,
+                  ),
+                );
+              },
+              activeColor: Colors.purple,
+              activeTrackColor: Colors.purple.withOpacity(0.3),
+              inactiveThumbColor: Colors.orange,
+              inactiveTrackColor: Colors.orange.withOpacity(0.3),
+            ),
+          ],
+        );
+      },
     );
   }
 

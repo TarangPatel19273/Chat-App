@@ -1,6 +1,8 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:io';
 import '../models/message_model.dart';
 import '../models/user_model.dart';
 import 'notification_service.dart';
@@ -8,6 +10,7 @@ import 'notification_service.dart';
 class ChatService {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   final NotificationService _notificationService = NotificationService();
   
   ChatService() {
@@ -76,6 +79,77 @@ class ChatService {
       
     } catch (e) {
       print('Error sending message: $e');
+      print('Stack trace: ${StackTrace.current}');
+      rethrow;
+    }
+  }
+
+  // Send an image message
+  Future<void> sendImageMessage(String receiverId, File imageFile) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        print('Error: No current user when sending image message');
+        return;
+      }
+
+      print('Starting image upload...');
+      
+      // Upload image to Firebase Storage
+      final String fileName = 'chat_images/${DateTime.now().millisecondsSinceEpoch}_${currentUser.uid}.jpg';
+      final Reference storageRef = _storage.ref().child(fileName);
+      
+      final UploadTask uploadTask = storageRef.putFile(imageFile);
+      final TaskSnapshot snapshot = await uploadTask;
+      
+      // Get download URL
+      final String downloadUrl = await snapshot.ref.getDownloadURL();
+      print('Image uploaded successfully. URL: $downloadUrl');
+      
+      final now = DateTime.now();
+      final messageData = MessageModel(
+        messageId: '',
+        senderId: currentUser.uid,
+        receiverId: receiverId,
+        message: 'Image', // Placeholder text for image messages
+        timestamp: now,
+        isRead: false,
+        type: MessageType.image,
+        imageUrl: downloadUrl,
+      );
+
+      // Create chat room ID (consistent ordering)
+      String chatRoomId = _createChatRoomId(currentUser.uid, receiverId);
+      
+      print('Sending image message to chat room: $chatRoomId');
+      
+      // Add message to chat room
+      final messageRef = _database.child('chats/$chatRoomId/messages').push();
+      await messageRef.set({
+        ...messageData.toJson(),
+        'messageId': messageRef.key,
+        'serverTimestamp': ServerValue.timestamp,
+      });
+      
+      // Update last message info
+      await _database.child('chats/$chatRoomId/lastMessage').set({
+        'message': 'Image',
+        'senderId': currentUser.uid,
+        'timestamp': ServerValue.timestamp,
+        'messageId': messageRef.key,
+        'type': 'image',
+      });
+      
+      // Update chat participants info
+      await _database.child('chats/$chatRoomId/participants').set({
+        currentUser.uid: true,
+        receiverId: true,
+      });
+      
+      print('Image message sent successfully with ID: ${messageRef.key}');
+      
+    } catch (e) {
+      print('Error sending image message: $e');
       print('Stack trace: ${StackTrace.current}');
       rethrow;
     }

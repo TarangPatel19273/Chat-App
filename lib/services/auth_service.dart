@@ -121,6 +121,7 @@ class AuthService {
         uid: user.uid,
         email: email,
         displayName: displayName,
+        description: '',
         isOnline: true,
         lastSeen: DateTime.now(),
         friends: [],
@@ -235,15 +236,22 @@ class AuthService {
   }
 
   // Update user profile in database
-  Future<void> updateUserProfile(String uid, String displayName) async {
+  Future<void> updateUserProfile(String uid, String displayName, [String? description]) async {
     try {
       print('Updating user profile in database: $uid');
       print('New display name: $displayName');
+      print('New description: $description');
       
-      await _database.child('users/$uid').update({
+      Map<String, dynamic> updateData = {
         'displayName': displayName,
         'lastSeen': DateTime.now().millisecondsSinceEpoch,
-      });
+      };
+      
+      if (description != null) {
+        updateData['description'] = description;
+      }
+      
+      await _database.child('users/$uid').update(updateData);
       
       print('Successfully updated user profile in database');
     } catch (e) {

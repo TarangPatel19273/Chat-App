@@ -7,6 +7,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'services/auth_service.dart';
 import 'services/database_service.dart';
+import 'providers/theme_provider.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -54,22 +55,26 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(
+          create: (_) => ThemeProvider(),
+        ),
         Provider<AuthService>(
           create: (_) => AuthService(),
         ),
       ],
-      child: MaterialApp(
-        title: 'Chatting App',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-          useMaterial3: true,
-        ),
-        home: const AuthWrapper(),
-        debugShowCheckedModeBanner: false,
-        // Named routes for better navigation control
-        routes: {
-          '/login': (context) => const LoginScreen(),
-          '/home': (context) => const HomeScreen(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'Chatting App',
+            theme: themeProvider.currentTheme,
+            home: const AuthWrapper(),
+            debugShowCheckedModeBanner: false,
+            // Named routes for better navigation control
+            routes: {
+              '/login': (context) => const LoginScreen(),
+              '/home': (context) => const HomeScreen(),
+            },
+          );
         },
       ),
     );

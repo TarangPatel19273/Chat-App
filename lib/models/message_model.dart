@@ -1,3 +1,8 @@
+enum MessageType {
+  text,
+  image,
+}
+
 class MessageModel {
   final String messageId;
   final String senderId;
@@ -5,6 +10,8 @@ class MessageModel {
   final String message;
   final DateTime timestamp;
   final bool isRead;
+  final MessageType type;
+  final String? imageUrl;
 
   MessageModel({
     required this.messageId,
@@ -13,6 +20,8 @@ class MessageModel {
     required this.message,
     required this.timestamp,
     required this.isRead,
+    this.type = MessageType.text,
+    this.imageUrl,
   });
 
   // Convert MessageModel to JSON
@@ -24,11 +33,19 @@ class MessageModel {
       'message': message,
       'timestamp': timestamp.millisecondsSinceEpoch,
       'isRead': isRead,
+      'type': type.toString().split('.').last,
+      'imageUrl': imageUrl,
     };
   }
 
   // Create MessageModel from JSON
   factory MessageModel.fromJson(Map<String, dynamic> json) {
+    MessageType type = MessageType.text;
+    String? typeString = json['type'];
+    if (typeString == 'image') {
+      type = MessageType.image;
+    }
+    
     return MessageModel(
       messageId: json['messageId'] ?? '',
       senderId: json['senderId'] ?? '',
@@ -36,6 +53,8 @@ class MessageModel {
       message: json['message'] ?? '',
       timestamp: DateTime.fromMillisecondsSinceEpoch(json['timestamp'] ?? 0),
       isRead: json['isRead'] ?? false,
+      type: type,
+      imageUrl: json['imageUrl'],
     );
   }
 
@@ -47,6 +66,8 @@ class MessageModel {
     String? message,
     DateTime? timestamp,
     bool? isRead,
+    MessageType? type,
+    String? imageUrl,
   }) {
     return MessageModel(
       messageId: messageId ?? this.messageId,
@@ -55,12 +76,14 @@ class MessageModel {
       message: message ?? this.message,
       timestamp: timestamp ?? this.timestamp,
       isRead: isRead ?? this.isRead,
+      type: type ?? this.type,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 
   @override
   String toString() {
-    return 'MessageModel(messageId: $messageId, senderId: $senderId, receiverId: $receiverId, message: $message, timestamp: $timestamp, isRead: $isRead)';
+    return 'MessageModel(messageId: $messageId, senderId: $senderId, receiverId: $receiverId, message: $message, timestamp: $timestamp, isRead: $isRead, type: $type, imageUrl: $imageUrl)';
   }
 
   @override
@@ -72,7 +95,9 @@ class MessageModel {
         other.receiverId == receiverId &&
         other.message == message &&
         other.timestamp == timestamp &&
-        other.isRead == isRead;
+        other.isRead == isRead &&
+        other.type == type &&
+        other.imageUrl == imageUrl;
   }
 
   @override
@@ -82,6 +107,8 @@ class MessageModel {
         receiverId.hashCode ^
         message.hashCode ^
         timestamp.hashCode ^
-        isRead.hashCode;
+        isRead.hashCode ^
+        type.hashCode ^
+        imageUrl.hashCode;
   }
 }

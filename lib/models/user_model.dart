@@ -2,6 +2,7 @@ class UserModel {
   final String uid;
   final String email;
   final String displayName;
+  final String description;
   final bool isOnline;
   final DateTime lastSeen;
   final List<String> friends;
@@ -10,6 +11,7 @@ class UserModel {
     required this.uid,
     required this.email,
     required this.displayName,
+    required this.description,
     required this.isOnline,
     required this.lastSeen,
     required this.friends,
@@ -21,6 +23,7 @@ class UserModel {
       'uid': uid,
       'email': email,
       'displayName': displayName,
+      'description': description,
       'isOnline': isOnline,
       'lastSeen': lastSeen.millisecondsSinceEpoch,
       'friends': friends,
@@ -46,6 +49,7 @@ class UserModel {
       uid: uid,
       email: json['email'] ?? '',
       displayName: json['displayName'] ?? '',
+      description: json['description'] ?? '',
       isOnline: json['isOnline'] ?? false,
       lastSeen: DateTime.fromMillisecondsSinceEpoch(json['lastSeen'] ?? 0),
       friends: friendsList,
@@ -57,6 +61,7 @@ class UserModel {
     String? uid,
     String? email,
     String? displayName,
+    String? description,
     bool? isOnline,
     DateTime? lastSeen,
     List<String>? friends,
@@ -65,6 +70,7 @@ class UserModel {
       uid: uid ?? this.uid,
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,
+      description: description ?? this.description,
       isOnline: isOnline ?? this.isOnline,
       lastSeen: lastSeen ?? this.lastSeen,
       friends: friends ?? this.friends,
@@ -73,7 +79,7 @@ class UserModel {
 
   @override
   String toString() {
-    return 'UserModel(uid: $uid, email: $email, displayName: $displayName, isOnline: $isOnline, lastSeen: $lastSeen, friends: $friends)';
+    return 'UserModel(uid: $uid, email: $email, displayName: $displayName, description: $description, isOnline: $isOnline, lastSeen: $lastSeen, friends: $friends)';
   }
 
   @override
@@ -83,6 +89,7 @@ class UserModel {
         other.uid == uid &&
         other.email == email &&
         other.displayName == displayName &&
+        other.description == description &&
         other.isOnline == isOnline &&
         other.lastSeen == lastSeen;
   }
@@ -92,6 +99,7 @@ class UserModel {
     return uid.hashCode ^
         email.hashCode ^
         displayName.hashCode ^
+        description.hashCode ^
         isOnline.hashCode ^
         lastSeen.hashCode;
   }
