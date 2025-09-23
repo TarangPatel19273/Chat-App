@@ -233,4 +233,22 @@ class AuthService {
       return null;
     }
   }
+
+  // Update user profile in database
+  Future<void> updateUserProfile(String uid, String displayName) async {
+    try {
+      print('Updating user profile in database: $uid');
+      print('New display name: $displayName');
+      
+      await _database.child('users/$uid').update({
+        'displayName': displayName,
+        'lastSeen': DateTime.now().millisecondsSinceEpoch,
+      });
+      
+      print('Successfully updated user profile in database');
+    } catch (e) {
+      print('Error updating user profile in database: $e');
+      throw e;
+    }
+  }
 }

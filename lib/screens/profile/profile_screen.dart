@@ -78,11 +78,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('No user logged in');
+      }
+
+      print('Updating profile for user: ${currentUser.uid}');
+      print('New display name: $newDisplayName');
+
       // Update Firebase Auth display name
-      await _auth.currentUser?.updateDisplayName(newDisplayName);
+      await currentUser.updateDisplayName(newDisplayName);
+      await currentUser.reload();
       
-      // Update in Realtime Database
-      await _auth.currentUser?.reload();
+      // Update in Firebase Realtime Database
+      final authService = Provider.of<AuthService>(context, listen: false);
+      await authService.updateUserProfile(currentUser.uid, newDisplayName);
       
       // Update local state
       if (_currentUserData != null) {
@@ -92,6 +102,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _isLoading = false;
         });
       }
+
+      print('Profile updated successfully in both Auth and Database');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
