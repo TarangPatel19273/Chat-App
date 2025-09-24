@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 import '../../models/user_model.dart';
 import '../../models/message_model.dart';
 import '../../services/chat_service.dart';
+import '../../services/storage_debug_service.dart';
 import 'package:intl/intl.dart';
+import '../../widgets/friend_profile_dialog.dart';
 
 class ChatScreen extends StatefulWidget {
   final UserModel friend;
@@ -22,6 +23,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final ChatService _chatService = ChatService();
   final ImagePicker _imagePicker = ImagePicker();
+  final StorageDebugService _debugService = StorageDebugService();
   bool _isUploading = false;
   File? _selectedImage;
   bool _showImagePreview = false;
@@ -31,6 +33,11 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     // Mark messages as read when entering chat
     _chatService.markMessagesAsRead(widget.friend.uid);
+    // Also listen to scroll to mark messages as read when user views older messages
+    _scrollController.addListener(() {
+      // Debounced simple behavior: on any scroll, attempt marking as read again
+      _chatService.markMessagesAsRead(widget.friend.uid);
+    });
   }
 
   @override
@@ -60,22 +67,86 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _pickImage() async {
-    try {
-      // Check permissions
-      final cameraStatus = await Permission.camera.request();
-      final storageStatus = await Permission.photos.request();
-      
-      if (!cameraStatus.isGranted && !storageStatus.isGranted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Camera and photo permissions are required to select images'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
+  Future<void> _sendSelectedImage() async {
+    if (_selectedImage == null) return;
 
+    try {
+      setState(() {
+        _isUploading = true;
+      });
+
+      // Debug Firebase Storage configuration
+      await _debugService.debugStorageConfiguration();
+      
+      // Test image upload first
+      print('Testing image upload before sending message...');
+      await _debugService.testImageUpload(_selectedImage!);
+      
+      // Send image through chat service
+      await _chatService.sendImageMessage(widget.friend.uid, _selectedImage!);
+
+      // Clear preview and reset state
+      setState(() {
+        _selectedImage = null;
+        _showImagePreview = false;
+        _isUploading = false;
+      });
+
+      // Scroll to bottom after sending image
+      _scrollToBottom();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Image sent successfully!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+      });
+      
+      print('Image send error: $e');
+      
+      // Show more detailed error message
+      String errorMessage = 'Failed to send image';
+      
+      if (e.toString().contains('object-not-found')) {
+        errorMessage = 'Firebase Storage not configured properly.\nPlease check your Firebase project settings.';
+      } else if (e.toString().contains('unauthorized') || e.toString().contains('permission')) {
+        errorMessage = 'Storage permission denied.\nFirebase Storage rules may be too restrictive.';
+      } else if (e.toString().contains('network')) {
+        errorMessage = 'Network error.\nCheck your internet connection.';
+      } else {
+        errorMessage = 'Upload failed: ${e.toString()}';
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: () => _sendSelectedImage(),
+          ),
+        ),
+      );
+    }
+  }
+
+  void _cancelImageSelection() {
+    setState(() {
+      _selectedImage = null;
+      _showImagePreview = false;
+    });
+  }
+
+  Future<void> _pickImageSimple() async {
+    try {
       // Show image source selection dialog
       final ImageSource? source = await showDialog<ImageSource>(
         context: context,
@@ -102,7 +173,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       if (source == null) return;
 
-      // Pick image
+      // Pick image directly
       final XFile? pickedFile = await _imagePicker.pickImage(
         source: source,
         maxWidth: 1024,
@@ -110,7 +181,10 @@ class _ChatScreenState extends State<ChatScreen> {
         imageQuality: 85,
       );
 
-      if (pickedFile == null) return;
+      if (pickedFile == null) {
+        // User cancelled or no image selected
+        return;
+      }
 
       // Show image preview
       setState(() {
@@ -122,63 +196,20 @@ class _ChatScreenState extends State<ChatScreen> {
       _scrollToBottom();
 
     } catch (e) {
+      // Handle any errors (including permission issues)
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to select image: $e'),
-          backgroundColor: Colors.red,
+          content: Text('Unable to access ${e.toString().contains('camera') ? 'camera' : 'gallery'}. Please check app permissions in Settings.'),
+          backgroundColor: Colors.orange,
+          action: SnackBarAction(
+            label: 'OK',
+            onPressed: () {},
+            textColor: Colors.white,
+          ),
         ),
       );
+      print('Error picking image: $e');
     }
-  }
-
-  Future<void> _sendSelectedImage() async {
-    if (_selectedImage == null) return;
-
-    try {
-      setState(() {
-        _isUploading = true;
-      });
-
-      // Send image
-      await _chatService.sendImageMessage(widget.friend.uid, _selectedImage!);
-
-      // Clear preview and reset state
-      setState(() {
-        _selectedImage = null;
-        _showImagePreview = false;
-        _isUploading = false;
-      });
-
-      // Scroll to bottom after sending image
-      _scrollToBottom();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Image sent successfully!'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 1),
-        ),
-      );
-
-    } catch (e) {
-      setState(() {
-        _isUploading = false;
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send image: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _cancelImageSelection() {
-    setState(() {
-      _selectedImage = null;
-      _showImagePreview = false;
-    });
   }
 
   void _scrollToBottom() {
@@ -197,7 +228,9 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
+        title: GestureDetector(
+          onTap: () => FriendProfileDialog.show(context, widget.friend),
+          child: Row(
           children: [
             CircleAvatar(
               backgroundColor: Theme.of(context).primaryColor,
@@ -232,7 +265,28 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           ],
+          ),
         ),
+        actions: [
+          // Temporary debug button - remove after fixing storage
+          IconButton(
+            icon: const Icon(Icons.bug_report),
+            onPressed: () async {
+              print('\n🔍 RUNNING COMPREHENSIVE STORAGE TEST...');
+              await _debugService.fullStorageTest();
+              
+              // Show result in UI too
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Storage test completed! Check console for results.'),
+                  backgroundColor: Colors.blue,
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            },
+            tooltip: 'Test Firebase Storage',
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -457,22 +511,22 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ],
             ),
-              child: SafeArea(
-                child: Row(
-                  children: [
-                    // Image picker button
-                    IconButton(
-                      onPressed: _pickImage,
-                      icon: Icon(
-                        Icons.image,
-                        color: Theme.of(context).brightness == Brightness.dark 
-                            ? Colors.grey[400] 
-                            : Colors.grey[600],
-                      ),
-                      tooltip: 'Select Image',
+            child: SafeArea(
+              child: Row(
+                children: [
+                  // Image picker button
+                  IconButton(
+                    onPressed: _pickImageSimple,
+                    icon: Icon(
+                      Icons.image,
+                      color: Theme.of(context).brightness == Brightness.dark 
+                          ? Colors.grey[400] 
+                          : Colors.grey[600],
                     ),
-                    Expanded(
-                      child: TextField(
+                    tooltip: 'Select Image',
+                  ),
+                  Expanded(
+                    child: TextField(
                       controller: _messageController,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _sendMessage(),
@@ -522,7 +576,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageBubble(MessageModel message, bool isMe) {
-    final currentUser = FirebaseAuth.instance.currentUser;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     
     return Align(

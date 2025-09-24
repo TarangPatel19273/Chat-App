@@ -10,7 +10,7 @@ import 'notification_service.dart';
 class ChatService {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instanceFor(bucket: 'gs://chat-app-1ca15.firebasestorage.app');
   final NotificationService _notificationService = NotificationService();
   
   ChatService() {
@@ -89,64 +89,113 @@ class ChatService {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        print('Error: No current user when sending image message');
-        return;
+        throw Exception('No current user when sending image message');
       }
 
       print('Starting image upload...');
+      print('Storage bucket: ${_storage.bucket}');
       
-      // Upload image to Firebase Storage
+      // Check if file exists and is readable
+      if (!await imageFile.exists()) {
+        throw Exception('Image file does not exist');
+      }
+      
+      final int fileSize = await imageFile.length();
+      print('File size: $fileSize bytes');
+      
+      if (fileSize == 0) {
+        throw Exception('Image file is empty');
+      }
+      
+      // Create a unique filename
       final String fileName = 'chat_images/${DateTime.now().millisecondsSinceEpoch}_${currentUser.uid}.jpg';
-      final Reference storageRef = _storage.ref().child(fileName);
+      print('Uploading to path: $fileName');
       
-      final UploadTask uploadTask = storageRef.putFile(imageFile);
-      final TaskSnapshot snapshot = await uploadTask;
-      
-      // Get download URL
-      final String downloadUrl = await snapshot.ref.getDownloadURL();
-      print('Image uploaded successfully. URL: $downloadUrl');
-      
-      final now = DateTime.now();
-      final messageData = MessageModel(
-        messageId: '',
-        senderId: currentUser.uid,
-        receiverId: receiverId,
-        message: 'Image', // Placeholder text for image messages
-        timestamp: now,
-        isRead: false,
-        type: MessageType.image,
-        imageUrl: downloadUrl,
-      );
+      try {
+        // Upload image to Firebase Storage with metadata
+        final Reference storageRef = _storage.ref().child(fileName);
+        
+        final SettableMetadata metadata = SettableMetadata(
+          contentType: 'image/jpeg',
+          customMetadata: {
+            'uploadedBy': currentUser.uid,
+            'uploadedAt': DateTime.now().toIso8601String(),
+          },
+        );
+        
+        final UploadTask uploadTask = storageRef.putFile(imageFile, metadata);
+        
+        // Monitor upload progress
+        uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+          final progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          print('Upload progress: ${progress.toStringAsFixed(1)}%');
+        });
+        
+        final TaskSnapshot snapshot = await uploadTask;
+        
+        // Get download URL
+        final String downloadUrl = await snapshot.ref.getDownloadURL();
+        print('Image uploaded successfully. URL: $downloadUrl');
+        
+        // Create message data
+        final now = DateTime.now();
+        final messageData = MessageModel(
+          messageId: '',
+          senderId: currentUser.uid,
+          receiverId: receiverId,
+          message: 'Image', // Placeholder text for image messages
+          timestamp: now,
+          isRead: false,
+          type: MessageType.image,
+          imageUrl: downloadUrl,
+        );
 
-      // Create chat room ID (consistent ordering)
-      String chatRoomId = _createChatRoomId(currentUser.uid, receiverId);
-      
-      print('Sending image message to chat room: $chatRoomId');
-      
-      // Add message to chat room
-      final messageRef = _database.child('chats/$chatRoomId/messages').push();
-      await messageRef.set({
-        ...messageData.toJson(),
-        'messageId': messageRef.key,
-        'serverTimestamp': ServerValue.timestamp,
-      });
-      
-      // Update last message info
-      await _database.child('chats/$chatRoomId/lastMessage').set({
-        'message': 'Image',
-        'senderId': currentUser.uid,
-        'timestamp': ServerValue.timestamp,
-        'messageId': messageRef.key,
-        'type': 'image',
-      });
-      
-      // Update chat participants info
-      await _database.child('chats/$chatRoomId/participants').set({
-        currentUser.uid: true,
-        receiverId: true,
-      });
-      
-      print('Image message sent successfully with ID: ${messageRef.key}');
+        // Create chat room ID (consistent ordering)
+        String chatRoomId = _createChatRoomId(currentUser.uid, receiverId);
+        
+        print('Sending image message to chat room: $chatRoomId');
+        
+        // Add message to chat room
+        final messageRef = _database.child('chats/$chatRoomId/messages').push();
+        await messageRef.set({
+          ...messageData.toJson(),
+          'messageId': messageRef.key,
+          'serverTimestamp': ServerValue.timestamp,
+        });
+        
+        // Update last message info
+        await _database.child('chats/$chatRoomId/lastMessage').set({
+          'message': 'Image',
+          'senderId': currentUser.uid,
+          'timestamp': ServerValue.timestamp,
+          'messageId': messageRef.key,
+          'type': 'image',
+        });
+        
+        // Update chat participants info
+        await _database.child('chats/$chatRoomId/participants').set({
+          currentUser.uid: true,
+          receiverId: true,
+        });
+        
+        print('Image message sent successfully with ID: ${messageRef.key}');
+        
+      } catch (storageError) {
+        print('Firebase Storage error: $storageError');
+        
+        // Provide more specific error messages
+        String errorMessage = 'Failed to upload image';
+        
+        if (storageError.toString().contains('object-not-found')) {
+          errorMessage = 'Storage bucket not found. Please check Firebase Storage configuration.';
+        } else if (storageError.toString().contains('unauthorized')) {
+          errorMessage = 'Storage access denied. Please check Firebase Storage rules.';
+        } else if (storageError.toString().contains('network')) {
+          errorMessage = 'Network error. Please check your internet connection.';
+        }
+        
+        throw Exception(errorMessage);
+      }
       
     } catch (e) {
       print('Error sending image message: $e');
@@ -389,5 +438,32 @@ class ChatService {
       print('Error getting unread message count: $e');
       return 0;
     }
+  }
+
+  // Stream unread message count in real-time
+  Stream<int> streamUnreadMessageCount(String senderId) {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return const Stream.empty();
+
+    final String chatRoomId = _createChatRoomId(currentUser.uid, senderId);
+
+    return _database
+        .child('chats/$chatRoomId/messages')
+        .orderByChild('senderId')
+        .equalTo(senderId)
+        .onValue
+        .map((event) {
+      int unreadCount = 0;
+      if (event.snapshot.value != null) {
+        final Map<dynamic, dynamic> messages =
+            event.snapshot.value as Map<dynamic, dynamic>;
+        messages.forEach((key, value) {
+          if (value['isRead'] == false) {
+            unreadCount++;
+          }
+        });
+      }
+      return unreadCount;
+    });
   }
 }

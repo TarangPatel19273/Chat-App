@@ -676,34 +676,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           ),
         ],
       ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            _formatTimestamp(timestamp),
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.blue,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Text(
-              'Chat',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
+      trailing: StreamBuilder<int>(
+        stream: _chatService.streamUnreadMessageCount(user.uid).asBroadcastStream(),
+        builder: (context, snapshot) {
+          final unread = snapshot.data ?? 0;
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _formatTimestamp(timestamp),
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                ),
               ),
-            ),
-          ),
-        ],
+              const SizedBox(height: 6),
+              if (unread > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    unread > 99 ? '99+' : '$unread',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
       onTap: () {
         Navigator.push(
