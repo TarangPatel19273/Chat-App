@@ -355,6 +355,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         Container(
           padding: const EdgeInsets.all(16),
           child: TextField(
+            style: const TextStyle(color: Colors.black),
+            cursorColor: Colors.black,
             decoration: InputDecoration(
               hintText: 'Search friends and chats...',
               prefixIcon: const Icon(Icons.search),
@@ -364,6 +366,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
               ),
               filled: true,
               fillColor: Colors.grey[100],
+              hintStyle: const TextStyle(color: Colors.black54),
             ),
             onChanged: (value) {
               setState(() {
@@ -891,6 +894,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           Container(
             padding: const EdgeInsets.all(16),
             child: TextField(
+              style: const TextStyle(color: Colors.black),
+              cursorColor: Colors.black,
               decoration: InputDecoration(
                 hintText: 'Search groups...',
                 prefixIcon: const Icon(Icons.search),
@@ -900,6 +905,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                 ),
                 filled: true,
                 fillColor: Colors.grey[100],
+                hintStyle: const TextStyle(color: Colors.black54),
               ),
               onChanged: (value) {
                 setState(() {

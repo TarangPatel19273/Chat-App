@@ -250,12 +250,22 @@ class GroupService {
         return false;
       }
 
+      // Avoid duplicate add
+      if (group.members.contains(userId)) {
+        print('User already a member of this group');
+        return true;
+      }
+
       // Add user to members list
       List<String> updatedMembers = [...group.members, userId];
       await _database.child('groups/$groupId/members').set(updatedMembers);
 
       // Add group reference to user's profile
-      await _database.child('users/$userId/groups').child(groupId).set(true);
+      await _database.child('users/$userId/groups').child(groupId).set({
+        'joinedAt': ServerValue.timestamp,
+        'isActive': true,
+        'groupName': group.groupName,
+      });
 
       print('Member added to group successfully');
       return true;

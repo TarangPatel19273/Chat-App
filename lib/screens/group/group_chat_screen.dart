@@ -107,6 +107,23 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     );
   }
 
+  Future<void> _openAddMembers() async {
+    final result = await Navigator.pushNamed(
+      context,
+      '/group/addMembers',
+      arguments: widget.group,
+    );
+    if (result == true) {
+      // Refresh members and UI after adding
+      await _loadMembersDetails();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Members added successfully')),
+        );
+      }
+    }
+  }
+
   Widget _buildGroupInfoSheet() {
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
@@ -343,10 +360,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                     ],
                   ),
                   onTap: () {
-                    // TODO: Implement add member functionality
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Add member feature coming soon!')),
-                    );
+                    Future.delayed(const Duration(milliseconds: 100), () {
+                      _openAddMembers();
+                    });
                   },
                 ),
               PopupMenuItem(

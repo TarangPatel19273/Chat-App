@@ -9,6 +9,8 @@ import 'services/auth_service.dart';
 import 'services/database_service.dart';
 import 'providers/theme_provider.dart';
 import 'firebase_options.dart';
+import 'models/group_model.dart';
+import 'screens/group/add_group_members_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +75,15 @@ class MyApp extends StatelessWidget {
             routes: {
               '/login': (context) => const LoginScreen(),
               '/home': (context) => const HomeScreen(),
+              '/group/addMembers': (context) {
+                final args = ModalRoute.of(context)?.settings.arguments;
+                if (args is GroupModel) {
+                  return AddGroupMembersScreen(group: args);
+                }
+                return const Scaffold(
+                  body: Center(child: Text('Invalid group data')),
+                );
+              },
             },
           );
         },
