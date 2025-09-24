@@ -28,6 +28,8 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   void initState() {
     super.initState();
     _loadMembersDetails();
+    // Mark as read when opening group chat
+    _groupService.markGroupAsRead(widget.group.groupId);
   }
 
   Future<void> _loadMembersDetails() async {
@@ -427,6 +429,11 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
+                    // Mark as read on scroll/render
+                    if (index == messages.length - 1) {
+                      // newest visible
+                      _groupService.markGroupAsRead(widget.group.groupId);
+                    }
                     return _buildMessageBubble(messages[index]);
                   },
                 );

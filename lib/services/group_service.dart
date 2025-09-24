@@ -381,4 +381,54 @@ class GroupService {
       return [];
     }
   }
+
+  // Stream unread message count for a group for current user
+  Stream<int> streamGroupUnreadCount(String groupId) {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return const Stream.empty();
+
+    final userGroupRef = _database.child('users/${currentUser.uid}/groups/$groupId');
+    final messagesRef = _database.child('group_messages/$groupId/messages');
+
+    // Combine both streams: lastReadAt and messages
+    return userGroupRef.onValue.asyncExpand((userSnap) {
+      int lastReadAt = 0;
+      if (userSnap.snapshot.value != null) {
+        final data = Map<dynamic, dynamic>.from(userSnap.snapshot.value as Map);
+        lastReadAt = (data['lastReadAt'] ?? 0) as int;
+      }
+
+      return messagesRef.onValue.map((msgSnap) {
+        int count = 0;
+        if (msgSnap.snapshot.value != null) {
+          final Map<dynamic, dynamic> messages =
+              msgSnap.snapshot.value as Map<dynamic, dynamic>;
+          messages.forEach((key, value) {
+            try {
+              final Map<String, dynamic> m = Map<String, dynamic>.from(value);
+              final int ts = (m['timestamp'] ?? 0) as int;
+              final String senderId = (m['senderId'] ?? '') as String;
+              if (senderId != currentUser.uid && ts > lastReadAt) {
+                count++;
+              }
+            } catch (_) {}
+          });
+        }
+        return count;
+      });
+    });
+  }
+
+  // Mark group messages as read by setting lastReadAt for the user
+  Future<void> markGroupAsRead(String groupId) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+    try {
+      await _database.child('users/${currentUser.uid}/groups/$groupId').update({
+        'lastReadAt': ServerValue.timestamp,
+      });
+    } catch (e) {
+      print('Error marking group as read: $e');
+    }
+  }
 }

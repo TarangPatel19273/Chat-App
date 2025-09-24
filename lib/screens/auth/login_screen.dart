@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import 'register_screen.dart';
-import '../debug/firebase_test_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -49,6 +48,8 @@ class _LoginScreenState extends State<LoginScreen> {
             duration: Duration(seconds: 2),
           ),
         );
+        // Navigate to Home and clear back stack immediately
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
       }
       
       // The AuthWrapper will automatically navigate to HomeScreen
@@ -282,26 +283,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     
                     const SizedBox(height: 16),
-                    
-                    // Debug Button
-                    Center(
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => const FirebaseTestScreen(),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'Debug Firebase Issues',
-                          style: TextStyle(
-                            color: Colors.red[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),

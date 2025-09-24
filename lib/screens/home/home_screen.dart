@@ -146,6 +146,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   Future<void> _signOut() async {
     final authService = Provider.of<AuthService>(context, listen: false);
     await authService.signOut();
+    if (mounted) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    }
   }
 
   Future<void> _showAddFriendDialog() async {
@@ -831,35 +834,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           ),
         ],
       ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (group.lastMessage.isNotEmpty)
-            Text(
-              _formatTimestamp(group.lastMessageTime),
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-              ),
-            ),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.purple,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Text(
-              'Group',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
+      trailing: StreamBuilder<int>(
+        stream: _groupService.streamGroupUnreadCount(group.groupId).asBroadcastStream(),
+        builder: (context, snapshot) {
+          final unread = snapshot.data ?? 0;
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (group.lastMessage.isNotEmpty)
+                Text(
+                  _formatTimestamp(group.lastMessageTime),
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+              const SizedBox(height: 4),
+              if (unread > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    unread > 99 ? '99+' : '$unread',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
       onTap: () {
         Navigator.push(
@@ -1090,35 +1100,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           ),
         ],
       ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (group.lastMessage.isNotEmpty)
-            Text(
-              _formatTimestamp(group.lastMessageTime),
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-              ),
-            ),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.purple,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Text(
-              'Group',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
+      trailing: StreamBuilder<int>(
+        stream: _groupService.streamGroupUnreadCount(group.groupId).asBroadcastStream(),
+        builder: (context, snapshot) {
+          final unread = snapshot.data ?? 0;
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (group.lastMessage.isNotEmpty)
+                Text(
+                  _formatTimestamp(group.lastMessageTime),
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+              const SizedBox(height: 4),
+              if (unread > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    unread > 99 ? '99+' : '$unread',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
       onTap: () {
         Navigator.push(

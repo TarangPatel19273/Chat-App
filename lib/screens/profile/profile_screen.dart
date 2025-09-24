@@ -336,6 +336,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   duration: Duration(seconds: 1),
                                 ),
                               );
+                              // Navigate to login and clear stack
+                              Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
                             }
                           }
                         },

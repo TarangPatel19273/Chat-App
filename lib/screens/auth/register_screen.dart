@@ -52,6 +52,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             duration: Duration(seconds: 2),
           ),
         );
+        // Navigate to Home and clear stack
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
       }
     } on FirebaseAuthException catch (e) {
       String errorMessage = 'An error occurred. Please try again.';
