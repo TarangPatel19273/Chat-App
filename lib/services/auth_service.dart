@@ -227,6 +227,90 @@ class AuthService {
     }
   }
 
+  // Remove friend
+  Future<bool> removeFriend(String friendUid) async {
+    try {
+      if (currentUser == null) {
+        print('No current user found');
+        return false;
+      }
+      
+      final currentUid = currentUser!.uid;
+      print('Removing friend: $friendUid from user: $currentUid');
+      
+      // Get current user's friends list
+      DatabaseEvent currentUserEvent = await _database.child('users/$currentUid/friends').once();
+      if (currentUserEvent.snapshot.value != null) {
+        Map<dynamic, dynamic> friendsMap = currentUserEvent.snapshot.value as Map<dynamic, dynamic>;
+        
+        // Find and remove the friend from current user's friends list
+        String? friendKey;
+        for (var entry in friendsMap.entries) {
+          if (entry.value == friendUid) {
+            friendKey = entry.key;
+            break;
+          }
+        }
+        
+        if (friendKey != null) {
+          await _database.child('users/$currentUid/friends/$friendKey').remove();
+          print('Removed friend from current user\'s friends list');
+        }
+      }
+      
+      // Get friend's friends list and remove current user
+      DatabaseEvent friendEvent = await _database.child('users/$friendUid/friends').once();
+      if (friendEvent.snapshot.value != null) {
+        Map<dynamic, dynamic> friendsMap = friendEvent.snapshot.value as Map<dynamic, dynamic>;
+        
+        // Find and remove current user from friend's friends list
+        String? currentUserKey;
+        for (var entry in friendsMap.entries) {
+          if (entry.value == currentUid) {
+            currentUserKey = entry.key;
+            break;
+          }
+        }
+        
+        if (currentUserKey != null) {
+          await _database.child('users/$friendUid/friends/$currentUserKey').remove();
+          print('Removed current user from friend\'s friends list');
+        }
+      }
+      
+      // Clean up chat data between the two users
+      await _cleanupChatData(currentUid, friendUid);
+      
+      print('Successfully removed friend');
+      return true;
+    } catch (e) {
+      print('Error removing friend: $e');
+      return false;
+    }
+  }
+
+  // Clean up chat data when friends are removed
+  Future<void> _cleanupChatData(String currentUid, String friendUid) async {
+    try {
+      // Create chat room ID (consistent ordering)
+      String chatRoomId = _createChatRoomId(currentUid, friendUid);
+      
+      // Remove the chat room and all its messages
+      await _database.child('chats/$chatRoomId').remove();
+      print('Cleaned up chat data for chat room: $chatRoomId');
+    } catch (e) {
+      print('Error cleaning up chat data: $e');
+      // Don't throw error - friend removal should succeed even if chat cleanup fails
+    }
+  }
+
+  // Helper method to create consistent chat room ID
+  String _createChatRoomId(String uid1, String uid2) {
+    // Sort the UIDs to ensure consistent chat room ID regardless of order
+    List<String> sortedUids = [uid1, uid2]..sort();
+    return '${sortedUids[0]}_${sortedUids[1]}';
+  }
+
   // Get current user data
   Future<UserModel?> getCurrentUserData() async {
     try {

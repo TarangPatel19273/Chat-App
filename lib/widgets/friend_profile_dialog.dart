@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/user_model.dart';
+import '../services/auth_service.dart';
 
 class FriendProfileDialog extends StatelessWidget {
   final UserModel friend;
@@ -144,14 +146,11 @@ class FriendProfileDialog extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      // Could add more actions like call, video call, etc.
-                    },
-                    icon: const Icon(Icons.message),
-                    label: const Text('Message'),
+                    onPressed: () => _showDeleteFriendDialog(context),
+                    icon: const Icon(Icons.person_remove, color: Colors.white),
+                    label: const Text('Delete Friend'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
+                      backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
@@ -212,5 +211,108 @@ class FriendProfileDialog extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  void _showDeleteFriendDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Friend'),
+        content: Text('Are you sure you want to remove ${friend.displayName} from your friends list?'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              // Close dialogs first
+              Navigator.of(context).pop(); // Close confirmation dialog
+              Navigator.of(context).pop(); // Close friend profile dialog
+              
+              // Use a slight delay to ensure dialogs are closed before proceeding
+              await Future.delayed(const Duration(milliseconds: 100));
+              await _deleteFriend(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteFriend(BuildContext context) async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('Removing friend...'),
+            ],
+          ),
+        ),
+      );
+
+      bool success = await authService.removeFriend(friend.uid);
+      
+      // Close loading dialog
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      
+      if (success) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${friend.displayName} has been removed from your friends list'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        
+        // Navigate back to home screen and clear the entire navigation stack
+        // This will remove the friend from chat and friends list
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      } else {
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to remove friend. Please try again.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error in _deleteFriend: $e');
+      
+      // Close loading dialog if it's still open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 }

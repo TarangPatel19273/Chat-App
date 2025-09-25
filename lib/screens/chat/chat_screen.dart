@@ -80,7 +80,10 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         title: GestureDetector(
-          onTap: () => FriendProfileDialog.show(context, widget.friend),
+          onTap: () => showDialog(
+            context: context,
+            builder: (context) => FriendProfileDialog(friend: widget.friend),
+          ),
           child: Row(
           children: [
             CircleAvatar(
