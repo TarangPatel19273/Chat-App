@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
@@ -47,12 +48,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     super.initState();
     _tabController = TabController(length: 2, vsync: this); // Only Chats and Groups
     
-    // Pre-load friends and groups data
-    _loadFriends();
-    _loadGroups();
+    // Pre-load friends and groups data immediately
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadFriends();
+      _loadGroups();
+    });
     
     // Listen for real-time notifications
     _setupNotificationListener();
+    
+    // Add a fallback timer to show content even if streams are slow
+    Timer(const Duration(seconds: 5), () {
+      if (mounted && _cachedFriends.isEmpty && _cachedGroups.isEmpty) {
+        print('Fallback: Forcing UI update after 5 seconds');
+        setState(() {});
+      }
+    });
   }
   
   void _setupNotificationListener() {
@@ -144,10 +155,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   }
 
   Future<void> _signOut() async {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    await authService.signOut();
-    if (mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      await authService.signOut();
+      
+      // Add a longer delay to ensure sign-out is complete
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      if (mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Signed out successfully'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 1),
+          ),
+        );
+        
+        // Wait a bit more for the message to show, then navigate
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        if (mounted) {
+          // Navigate to login and clear the entire navigation stack
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        }
+      }
+    } catch (e) {
+      print('Error during sign out: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error signing out: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -413,17 +455,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                         groups = _cachedGroups;
                       }
 
-                // Show loading if all are still loading
+                // Show loading only if we have no cached data and streams are still loading
                 if ((chatSnapshot.connectionState == ConnectionState.waiting || 
                      friendsSnapshot.connectionState == ConnectionState.waiting ||
                      groupsSnapshot.connectionState == ConnectionState.waiting) && 
-                    chats.isEmpty && friends.isEmpty && groups.isEmpty) {
+                    _cachedChats.isEmpty && _cachedFriends.isEmpty && _cachedGroups.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                // Show error if all have errors
+                // Show error only if we have no cached data and all streams have errors
                 if (chatSnapshot.hasError && friendsSnapshot.hasError && groupsSnapshot.hasError &&
-                    chats.isEmpty && friends.isEmpty && groups.isEmpty) {
+                    _cachedChats.isEmpty && _cachedFriends.isEmpty && _cachedGroups.isEmpty) {
                   return const Center(
                     child: Text('Error loading chats, friends, and groups'),
                   );
@@ -466,7 +508,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                 }
 
                 // If no chats, friends, and groups, show empty state
-                if (chats.isEmpty && friends.isEmpty && groups.isEmpty) {
+                if (chats.isEmpty && friends.isEmpty && groups.isEmpty && 
+                    _cachedChats.isEmpty && _cachedFriends.isEmpty && _cachedGroups.isEmpty) {
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,

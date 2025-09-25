@@ -56,7 +56,7 @@ class UserModel {
     );
   }
 
-  // Create a copy with updated fields
+  // Creates a new UserModel object with some fields changed while keeping others the same.
   UserModel copyWith({
     String? uid,
     String? email,
@@ -77,11 +77,15 @@ class UserModel {
     );
   }
 
+
+  //Makes it easy to print the object in debug logs
   @override
   String toString() {
     return 'UserModel(uid: $uid, email: $email, displayName: $displayName, description: $description, isOnline: $isOnline, lastSeen: $lastSeen, friends: $friends)';
   }
 
+
+  //Equality & HashCode
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

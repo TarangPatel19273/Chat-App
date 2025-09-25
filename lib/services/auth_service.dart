@@ -97,11 +97,16 @@ class AuthService {
     try {
       print('🔓 Starting sign-out...');
       
-      // Update user status to offline
+      // Update user status to offline (with error handling)
       if (currentUser != null) {
         print('🔄 Updating user status to offline for: ${currentUser!.email}');
-        await _updateUserStatus(currentUser!.uid, false);
-        print('✅ User status updated to offline');
+        try {
+          await _updateUserStatus(currentUser!.uid, false);
+          print('✅ User status updated to offline');
+        } catch (e) {
+          print('⚠️ Warning: Could not update user status to offline: $e');
+          // Continue with sign-out even if status update fails
+        }
       }
       
       print('🗿 Calling Firebase Auth sign-out...');
@@ -141,10 +146,17 @@ class AuthService {
 
   // Update user online status
   Future<void> _updateUserStatus(String uid, bool isOnline) async {
-    await _database.child('users/$uid').update({
-      'isOnline': isOnline,
-      'lastSeen': DateTime.now().millisecondsSinceEpoch,
-    });
+    try {
+      print('Updating user status: $uid -> isOnline: $isOnline');
+      await _database.child('users/$uid').update({
+        'isOnline': isOnline,
+        'lastSeen': DateTime.now().millisecondsSinceEpoch,
+      });
+      print('User status updated successfully');
+    } catch (e) {
+      print('Error updating user status: $e');
+      throw e;
+    }
   }
 
   // Get user by email

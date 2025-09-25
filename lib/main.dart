@@ -11,6 +11,7 @@ import 'providers/theme_provider.dart';
 import 'firebase_options.dart';
 import 'models/group_model.dart';
 import 'screens/group/add_group_members_screen.dart';
+import 'debug_firebase_test.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,6 +76,7 @@ class MyApp extends StatelessWidget {
             routes: {
               '/login': (context) => const LoginScreen(),
               '/home': (context) => const HomeScreen(),
+              '/debug': (context) => const FirebaseDebugTest(),
               '/group/addMembers': (context) {
                 final args = ModalRoute.of(context)?.settings.arguments;
                 if (args is GroupModel) {
@@ -119,13 +121,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       builder: (context, snapshot) {
         print('StreamBuilder rebuild - ConnectionState: ${snapshot.connectionState}, HasData: ${snapshot.hasData}, User: ${snapshot.data?.email}');
         
-        // Show loading state while connecting
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          print('Showing loading screen...');
-          return _buildLoadingScreen(context);
-        }
-        
-        // Check for errors
+        // Check for errors first
         if (snapshot.hasError) {
           print('Auth stream error: ${snapshot.error}');
           return _buildErrorScreen(context, snapshot.error.toString());
@@ -134,21 +130,28 @@ class _AuthWrapperState extends State<AuthWrapper> {
         // User is signed in
         if (snapshot.hasData && snapshot.data != null) {
           print('✅ User authenticated: ${snapshot.data!.email} (${snapshot.data!.uid})');
-          // Add a small delay to ensure the UI is ready
+          return const HomeScreen();
+        }
+        
+        // Show loading state only for a limited time, then show login
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          print('Auth state is waiting, showing loading with timeout...');
           return FutureBuilder(
-            future: Future.delayed(const Duration(milliseconds: 100)),
-            builder: (context, delaySnapshot) {
-              if (delaySnapshot.connectionState == ConnectionState.done) {
-                return const HomeScreen();
+            future: Future.delayed(const Duration(seconds: 3)),
+            builder: (context, timeoutSnapshot) {
+              if (timeoutSnapshot.connectionState == ConnectionState.done) {
+                // After 3 seconds, show login screen even if still waiting
+                print('Auth timeout reached, showing login screen');
+                return const LoginScreen();
               }
               return _buildLoadingScreen(context);
             },
           );
-        } else {
-          // User is not signed in
-          print('❌ User not authenticated, showing login');
-          return const LoginScreen();
         }
+        
+        // User is not signed in
+        print('❌ User not authenticated, showing login');
+        return const LoginScreen();
       },
     );
   }
@@ -174,6 +177,34 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 fontSize: 16,
                 color: Colors.grey,
               ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Initializing Firebase Auth...',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextButton(
+              onPressed: () {
+                // Force show login screen
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                );
+              },
+              child: const Text('Skip to Login'),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () {
+                // Navigate to debug screen
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const FirebaseDebugTest()),
+                );
+              },
+              child: const Text('Debug Firebase'),
             ),
           ],
         ),

@@ -324,20 +324,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           // Show confirmation dialog
                           bool shouldSignOut = await _showSignOutDialog();
                           if (shouldSignOut) {
-                            final authService = Provider.of<AuthService>(context, listen: false);
-                            await authService.signOut();
-                            
-                            // Show sign out message
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Signed out successfully'),
-                                  backgroundColor: Colors.blue,
-                                  duration: Duration(seconds: 1),
-                                ),
-                              );
-                              // Navigate to login and clear stack
-                              Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                            try {
+                              final authService = Provider.of<AuthService>(context, listen: false);
+                              await authService.signOut();
+                              
+                              // Add a small delay to ensure sign-out is complete
+                              await Future.delayed(const Duration(milliseconds: 500));
+                              
+                              // Show sign out message
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Signed out successfully'),
+                                    backgroundColor: Colors.blue,
+                                    duration: Duration(seconds: 1),
+                                  ),
+                                );
+                                
+                                // Wait a bit more for the message to show, then navigate
+                                await Future.delayed(const Duration(milliseconds: 500));
+                                
+                                if (mounted) {
+                                  // Navigate to login and clear stack
+                                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                                }
+                              }
+                            } catch (e) {
+                              print('Error during sign out: $e');
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error signing out: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
                             }
                           }
                         },
