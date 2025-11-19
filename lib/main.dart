@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -31,11 +32,15 @@ void main() async {
     }
   }
   
-  // Enable Firebase Realtime Database offline persistence
+  // Enable Firebase Realtime Database offline persistence (not supported on web)
   try {
-    FirebaseDatabase.instance.setPersistenceEnabled(true);
-    FirebaseDatabase.instance.setPersistenceCacheSizeBytes(10000000); // 10MB cache
-    print('Firebase offline persistence enabled');
+    if (!kIsWeb) {
+      FirebaseDatabase.instance.setPersistenceEnabled(true);
+      FirebaseDatabase.instance.setPersistenceCacheSizeBytes(10000000); // 10MB cache
+      print('Firebase offline persistence enabled');
+    } else {
+      print('Firebase offline persistence skipped (not supported on web)');
+    }
     
     // Setup database persistence rules
     final databaseService = DatabaseService();

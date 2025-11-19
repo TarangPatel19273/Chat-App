@@ -17,11 +17,13 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  final ChatService _chatService = ChatService();
+  final TextEditingController _messageController = TextEditingController();//manages the text input field for messages.
+  final ScrollController _scrollController = ScrollController();//lets us control chat scrolling (e.g., move to bottom).
+  final ChatService _chatService = ChatService();//instance of the class that talks to the backend (Firestore or any DB).
   
 
+
+  //Marks friend’s messages as read when chat opens.
   @override
   void initState() {
     super.initState();
@@ -34,6 +36,8 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+
+  //Releases memory when screen is closed by disposing controllers.
   @override
   void dispose() {
     _messageController.dispose();
@@ -41,6 +45,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  //Sending Messages
   void _sendMessage() async {
     final messageText = _messageController.text.trim();
     if (messageText.isEmpty) return;
@@ -61,8 +66,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  
-
+ //Scroll Helper
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -75,9 +79,12 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+
+  //UI: Scaffold
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      //AppBar:Tapping title opens FriendProfileDialog
       appBar: AppBar(
         title: GestureDetector(
           onTap: () => showDialog(
@@ -123,9 +130,11 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         actions: [],
       ),
+      //Input box at bottom.
       body: Column(
         children: [
           // Messages List
+          //Uses a StreamBuilder to listen to real-time updates.
           Expanded(
             child: StreamBuilder<List<MessageModel>>(
               stream: _chatService.getMessages(widget.friend.uid).asBroadcastStream(),
@@ -169,6 +178,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 // Auto scroll to bottom when new messages arrive
                 WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
+                //ListView of Messages
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
@@ -220,7 +230,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           
-          // Message Input
+          // Message Input Box
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -289,6 +299,8 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  //Aligns right for my messages, left for friend’s.
+  //Bottom-right corner: timestamp and ✓ checkmarks (single = sent, double = read).
   Widget _buildMessageBubble(MessageModel message, bool isMe) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     
@@ -401,6 +413,8 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+
+  //Date Formatting (Today,YesterDay etc..)
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);

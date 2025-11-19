@@ -154,6 +154,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     super.dispose();
   }
 
+
+  //SignOut
   Future<void> _signOut() async {
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
@@ -193,6 +195,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     }
   }
 
+  //To Add Friend DialogBox
   Future<void> _showAddFriendDialog() async {
     final emailController = TextEditingController();
     bool isLoading = false;
@@ -672,6 +675,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     );
   }
 
+
+//shows user avatar, last message, timestamp, and an unread badge (uses _chatService.streamUnreadMessageCount(user.uid) stream).
+// Tapping navigates to ChatScreen.
   Widget _buildChatItem(Map<String, dynamic> chat) {
     final user = chat['user'] as UserModel;
     final lastMessage = chat['lastMessage'] as String;
@@ -772,6 +778,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     );
   }
 
+  //shows friend row with "Start Chat" and navigates to ChatScreen
   Widget _buildFriendChatItem(UserModel friend) {
     return ListTile(
       leading: Stack(
@@ -837,7 +844,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       },
     );
   }
-  
+
+  //similar but for groups; shows unread badge using
   Widget _buildGroupChatItem(GroupModel group) {
     return ListTile(
       leading: CircleAvatar(
@@ -928,7 +936,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     );
   }
 
-
+//Search bar modifies _groupSearchQuery.
   Widget _buildGroupsTab() {
     return Scaffold(
       body: Column(
