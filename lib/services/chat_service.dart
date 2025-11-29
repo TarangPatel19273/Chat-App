@@ -85,6 +85,54 @@ class ChatService {
     }
   }
 
+  // Delete a message for both users in a chat
+  Future<void> deleteMessage(String otherUserId, String messageId) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return;
+
+      final String chatRoomId = _createChatRoomId(currentUser.uid, otherUserId);
+
+      // Remove the message from the messages list
+      final messageRef =
+          _database.child('chats/$chatRoomId/messages/$messageId');
+      await messageRef.remove();
+
+      // After deleting, update the lastMessage field to the latest remaining message (if any)
+      final DatabaseEvent remainingMessagesEvent = await _database
+          .child('chats/$chatRoomId/messages')
+          .orderByChild('timestamp')
+          .limitToLast(1)
+          .once();
+
+      if (remainingMessagesEvent.snapshot.value != null) {
+        final Map<dynamic, dynamic> remainingMessages =
+            remainingMessagesEvent.snapshot.value as Map<dynamic, dynamic>;
+
+        // There should be at most one entry due to limitToLast(1)
+        final entry = remainingMessages.entries.first;
+        final String lastMessageId = entry.key;
+        final Map<String, dynamic> lastMessageMap =
+            Map<String, dynamic>.from(entry.value);
+        lastMessageMap['messageId'] = lastMessageId;
+
+        final MessageModel lastMessage = MessageModel.fromJson(lastMessageMap);
+
+        await _database.child('chats/$chatRoomId/lastMessage').set({
+          'message': lastMessage.message,
+          'senderId': lastMessage.senderId,
+          'timestamp': lastMessage.timestamp.millisecondsSinceEpoch,
+          'messageId': lastMessage.messageId,
+        });
+      } else {
+        // No messages left in this chat, remove the lastMessage node
+        await _database.child('chats/$chatRoomId/lastMessage').remove();
+      }
+    } catch (e) {
+      print('Error deleting message: $e');
+    }
+  }
+
   // Send an image message
   // Future<void> sendImageMessage(String receiverId, File imageFile) async {
   //   try {

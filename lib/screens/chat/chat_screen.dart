@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:io';
 import '../../models/user_model.dart';
 import '../../models/message_model.dart';
 import '../../services/chat_service.dart';
@@ -20,7 +19,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();//manages the text input field for messages.
   final ScrollController _scrollController = ScrollController();//lets us control chat scrolling (e.g., move to bottom).
   final ChatService _chatService = ChatService();//instance of the class that talks to the backend (Firestore or any DB).
-  
+
+  MessageModel? _selectedMessage;
 
 
   //Marks friend’s messages as read when chat opens.
@@ -64,6 +64,65 @@ class _ChatScreenState extends State<ChatScreen> {
         curve: Curves.easeOut,
       );
     }
+  }
+
+  // Handle long press on a message (select message)
+  void _onMessageLongPress(MessageModel message, bool isMe) {
+    // Optional: Only allow deleting own messages (like WhatsApp)
+    if (!isMe) return;
+
+    setState(() {
+      _selectedMessage = message;
+    });
+  }
+
+  // Clear the selected message (when tapping anywhere)
+  void _clearSelectedMessage() {
+    if (_selectedMessage == null) return;
+    setState(() {
+      _selectedMessage = null;
+    });
+  }
+
+  // Delete the currently selected message
+  Future<void> _deleteSelectedMessage() async {
+    if (_selectedMessage == null) return;
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete message?'),
+          content: const Text(
+            'This message will be deleted for you and your friend in this chat.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Delete',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete == true) {
+      await _chatService.deleteMessage(
+        widget.friend.uid,
+        _selectedMessage!.messageId,
+      );
+    }
+
+    setState(() {
+      _selectedMessage = null;
+    });
   }
 
  //Scroll Helper
@@ -128,15 +187,26 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
           ),
         ),
-        actions: [],
+        actions: [
+          if (_selectedMessage != null)
+            IconButton(
+              icon: const Icon(Icons.delete),
+              color: Colors.redAccent,
+              onPressed: _deleteSelectedMessage,
+              tooltip: 'Delete message for both',
+            ),
+        ],
       ),
       //Input box at bottom.
-      body: Column(
-        children: [
-          // Messages List
-          //Uses a StreamBuilder to listen to real-time updates.
-          Expanded(
-            child: StreamBuilder<List<MessageModel>>(
+      body: GestureDetector(
+        onTap: _clearSelectedMessage,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          children: [
+            // Messages List
+            //Uses a StreamBuilder to listen to real-time updates.
+            Expanded(
+              child: StreamBuilder<List<MessageModel>>(
               stream: _chatService.getMessages(widget.friend.uid).asBroadcastStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -187,7 +257,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     final message = messages[index];
                     final currentUser = FirebaseAuth.instance.currentUser;
                     final isMe = message.senderId == currentUser?.uid;
-                    
+                    final bool isSelected =
+                        _selectedMessage?.messageId == message.messageId;
+
                     // Group messages by date
                     bool showDateHeader = false;
                     if (index == 0) {
@@ -221,7 +293,16 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ),
                           ),
-                        _buildMessageBubble(message, isMe),
+                        GestureDetector(
+                          onLongPress: () =>
+                              _onMessageLongPress(message, isMe),
+                          onTap: () {
+                            if (_selectedMessage != null) {
+                              _clearSelectedMessage();
+                            }
+                          },
+                          child: _buildMessageBubble(message, isMe, isSelected),
+                        ),
                       ],
                     );
                   },
@@ -296,12 +377,12 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   //Aligns right for my messages, left for friend’s.
   //Bottom-right corner: timestamp and ✓ checkmarks (single = sent, double = read).
-  Widget _buildMessageBubble(MessageModel message, bool isMe) {
+  Widget _buildMessageBubble(MessageModel message, bool isMe, bool isSelected) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     
     return Align(
@@ -315,9 +396,11 @@ class _ChatScreenState extends State<ChatScreen> {
             ? const EdgeInsets.all(4) 
             : const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isMe 
-              ? Theme.of(context).primaryColor 
-              : (isDarkMode ? Colors.grey[700] : Colors.grey[200]),
+          color: isSelected
+              ? (isDarkMode ? Colors.blueGrey[700] : Colors.blue[100])
+              : (isMe 
+                  ? Theme.of(context).primaryColor 
+                  : (isDarkMode ? Colors.grey[700] : Colors.grey[200])),
           borderRadius: BorderRadius.circular(20).copyWith(
             bottomRight: isMe ? const Radius.circular(4) : const Radius.circular(20),
             bottomLeft: isMe ? const Radius.circular(20) : const Radius.circular(4),
