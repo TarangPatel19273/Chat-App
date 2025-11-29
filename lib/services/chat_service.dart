@@ -93,6 +93,25 @@ class ChatService {
 
       final String chatRoomId = _createChatRoomId(currentUser.uid, otherUserId);
 
+      // First, verify that the message belongs to the current user
+      final DatabaseEvent messageEvent = await _database
+          .child('chats/$chatRoomId/messages/$messageId')
+          .once();
+
+      if (messageEvent.snapshot.value == null) {
+        print('Message not found: $messageId');
+        return;
+      }
+
+      final Map<String, dynamic> messageData =
+          Map<String, dynamic>.from(messageEvent.snapshot.value as Map);
+      
+      // Security check: Only allow deleting own messages
+      if (messageData['senderId'] != currentUser.uid) {
+        print('Cannot delete message: User is not the sender');
+        return;
+      }
+
       // Remove the message from the messages list
       final messageRef =
           _database.child('chats/$chatRoomId/messages/$messageId');

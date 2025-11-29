@@ -31,6 +31,10 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   Map<String, UserModel> _membersCache = {}; // Cache for member details
   bool _isLoading = false; // indicates loading state while fetching members
 
+  // Message selection state (for multi-select deletion)
+  final Set<String> _selectedMessageIds = {};
+  final Set<String> _locallyDeletedMessageIds = {}; // Messages deleted "from me" only
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +79,124 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  // Handle long press on a message (select message)
+  // Only allows selecting messages sent by the current user
+  void _onMessageLongPress(MessageModel message, bool isMe) {
+    // Only allow selecting own messages
+    if (!isMe) return;
+
+    setState(() {
+      // Toggle selection
+      if (_selectedMessageIds.contains(message.messageId)) {
+        _selectedMessageIds.remove(message.messageId);
+      } else {
+        _selectedMessageIds.add(message.messageId);
+      }
+    });
+  }
+
+  // Clear the selected messages (when tapping anywhere)
+  void _clearSelectedMessages() {
+    if (_selectedMessageIds.isEmpty) return;
+    setState(() {
+      _selectedMessageIds.clear();
+    });
+  }
+
+  // Show delete options and perform the chosen action
+  Future<void> _showDeleteOptions() async {
+    if (_selectedMessageIds.isEmpty) return;
+
+    // Safety check: Filter out any messages that don't belong to current user
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    // Get all messages to verify ownership
+    final allMessages = await _groupService
+        .getGroupMessages(widget.group.groupId)
+        .first; // Get first snapshot
+
+    // Filter to only include own messages
+    final ownMessageIds = allMessages
+        .where((m) => m.senderId == currentUser.uid)
+        .map((m) => m.messageId)
+        .toSet();
+
+    // Remove any selected messages that don't belong to the user
+    _selectedMessageIds.removeWhere((id) => !ownMessageIds.contains(id));
+
+    if (_selectedMessageIds.isEmpty) {
+      // No valid messages to delete
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can only delete your own messages'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final String? choice = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Delete from me'),
+                onTap: () => Navigator.of(context).pop('me'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_forever, color: Colors.red),
+                title: const Text(
+                  'Delete from everyone',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () => Navigator.of(context).pop('everyone'),
+              ),
+              const Divider(height: 0),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Cancel'),
+                onTap: () => Navigator.of(context).pop('cancel'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    if (choice == 'me') {
+      // Hide messages only for current user (local state)
+      setState(() {
+        _locallyDeletedMessageIds.addAll(_selectedMessageIds);
+        _selectedMessageIds.clear();
+      });
+    } else if (choice == 'everyone') {
+      // Delete messages from database so they disappear for all group members
+      final idsToDelete = List<String>.from(_selectedMessageIds);
+      setState(() {
+        _selectedMessageIds.clear();
+      });
+
+      for (final id in idsToDelete) {
+        await _groupService.deleteGroupMessage(widget.group.groupId, id);
+      }
+    } else {
+      // Cancel: just clear selection
+      setState(() {
+        _selectedMessageIds.clear();
+      });
+    }
   }
 
   // Send a text message to the group
@@ -353,6 +475,14 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
           ),
         ),
         actions: [
+          // Show delete button when messages are selected
+          if (_selectedMessageIds.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete),
+              color: Colors.redAccent,
+              onPressed: _showDeleteOptions,
+              tooltip: 'Delete selected messages',
+            ),
           // Popup menu with group actions: info, add member (admin only), leave
           PopupMenuButton(
             itemBuilder: (context) => [
@@ -401,25 +531,32 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Messages list
-          Expanded(
-            child: StreamBuilder<List<MessageModel>>(
-              stream: _groupService.getGroupMessages(widget.group.groupId).asBroadcastStream(),
-              builder: (context, snapshot) {
-                // Show loading indicator when member details are still loading
-                if (snapshot.connectionState == ConnectionState.waiting && _isLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: GestureDetector(
+        onTap: _clearSelectedMessages,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          children: [
+            // Messages list
+            Expanded(
+              child: StreamBuilder<List<MessageModel>>(
+                stream: _groupService.getGroupMessages(widget.group.groupId).asBroadcastStream(),
+                builder: (context, snapshot) {
+                  // Show loading indicator when member details are still loading
+                  if (snapshot.connectionState == ConnectionState.waiting && _isLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error loading messages: ${snapshot.error}'),
-                  );
-                }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text('Error loading messages: ${snapshot.error}'),
+                    );
+                  }
 
-                List<MessageModel> messages = snapshot.data ?? [];
+                  final allMessages = snapshot.data ?? [];
+                  // Filter out locally "deleted for me" messages
+                  final messages = allMessages
+                      .where((m) => !_locallyDeletedMessageIds.contains(m.messageId))
+                      .toList();
 
                 if (messages.isEmpty) {
                   // Empty group placeholder
@@ -467,12 +604,27 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
+                    final message = messages[index];
+                    final currentUser = _auth.currentUser;
+                    final isMe = message.senderId == currentUser?.uid;
+                    final bool isSelected =
+                        _selectedMessageIds.contains(message.messageId);
+
                     // Mark as read on scroll/render for the newest message
                     if (index == messages.length - 1) {
                       // newest visible
                       _groupService.markGroupAsRead(widget.group.groupId);
                     }
-                    return _buildMessageBubble(messages[index]);
+                    return GestureDetector(
+                      onLongPress: () => _onMessageLongPress(message, isMe),
+                      onTap: () {
+                        if (_selectedMessageIds.isNotEmpty) {
+                          // When in selection mode, tap toggles selection
+                          _onMessageLongPress(message, isMe);
+                        }
+                      },
+                      child: _buildMessageBubble(message, isMe, isSelected),
+                    );
                   },
                 );
               },
@@ -524,15 +676,17 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
 
   // Build a single message bubble for the group chat
-  Widget _buildMessageBubble(MessageModel message) {
+  Widget _buildMessageBubble(MessageModel message, bool isMe, bool isSelected) {
     final currentUser = _auth.currentUser;
-    final isMyMessage = message.senderId == currentUser?.uid;
+    final isMyMessage = isMe;
     final sender = _membersCache[message.senderId];
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -558,9 +712,11 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isMyMessage
-                    ? Theme.of(context).primaryColor
-                    : Colors.grey[200],
+                color: isSelected
+                    ? (isDarkMode ? Colors.blueGrey[700] : Colors.blue[100])
+                    : (isMyMessage
+                        ? Theme.of(context).primaryColor
+                        : Colors.grey[200]),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Column(

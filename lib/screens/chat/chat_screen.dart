@@ -20,7 +20,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();//lets us control chat scrolling (e.g., move to bottom).
   final ChatService _chatService = ChatService();//instance of the class that talks to the backend (Firestore or any DB).
 
-  MessageModel? _selectedMessage;
+  // IDs of currently selected messages (for multi-select delete)
+  final Set<String> _selectedMessageIds = {};
+  // Messages that the current user has hidden locally ("delete for me")
+  final Set<String> _locallyDeletedMessageIds = {};
 
 
   //Marks friend’s messages as read when chat opens.
@@ -67,62 +70,120 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // Handle long press on a message (select message)
+  // Only allows selecting messages sent by the current user
   void _onMessageLongPress(MessageModel message, bool isMe) {
-    // Optional: Only allow deleting own messages (like WhatsApp)
+    // Only allow selecting own messages
     if (!isMe) return;
-
+    
     setState(() {
-      _selectedMessage = message;
+      // Toggle selection
+      if (_selectedMessageIds.contains(message.messageId)) {
+        _selectedMessageIds.remove(message.messageId);
+      } else {
+        _selectedMessageIds.add(message.messageId);
+      }
     });
   }
 
   // Clear the selected message (when tapping anywhere)
   void _clearSelectedMessage() {
-    if (_selectedMessage == null) return;
     setState(() {
-      _selectedMessage = null;
+      _selectedMessageIds.clear();
     });
   }
 
-  // Delete the currently selected message
-  Future<void> _deleteSelectedMessage() async {
-    if (_selectedMessage == null) return;
+  // Show delete options and perform the chosen action
+  Future<void> _showDeleteOptions() async {
+    if (_selectedMessageIds.isEmpty) return;
 
-    final shouldDelete = await showDialog<bool>(
+    // Safety check: Filter out any messages that don't belong to current user
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    // Get all messages to verify ownership
+    final allMessages = await _chatService
+        .getMessages(widget.friend.uid)
+        .first; // Get first snapshot
+    
+    // Filter to only include own messages
+    final ownMessageIds = allMessages
+        .where((m) => m.senderId == currentUser.uid)
+        .map((m) => m.messageId)
+        .toSet();
+    
+    // Remove any selected messages that don't belong to the user
+    _selectedMessageIds.removeWhere((id) => !ownMessageIds.contains(id));
+    
+    if (_selectedMessageIds.isEmpty) {
+      // No valid messages to delete
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can only delete your own messages'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final String? choice = await showModalBottomSheet<String>(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete message?'),
-          content: const Text(
-            'This message will be deleted for you and your friend in this chat.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text(
-                'Delete',
-                style: TextStyle(color: Colors.red),
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Delete from me'),
+                onTap: () => Navigator.of(context).pop('me'),
               ),
-            ),
-          ],
+              ListTile(
+                leading: const Icon(Icons.delete_forever, color: Colors.red),
+                title: const Text(
+                  'Delete from everyone',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () => Navigator.of(context).pop('everyone'),
+              ),
+              const Divider(height: 0),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Cancel'),
+                onTap: () => Navigator.of(context).pop('cancel'),
+              ),
+            ],
+          ),
         );
       },
     );
 
-    if (shouldDelete == true) {
-      await _chatService.deleteMessage(
-        widget.friend.uid,
-        _selectedMessage!.messageId,
-      );
-    }
+    if (!mounted) return;
 
-    setState(() {
-      _selectedMessage = null;
-    });
+    if (choice == 'me') {
+      // Hide messages only for current user (local state)
+      setState(() {
+        _locallyDeletedMessageIds.addAll(_selectedMessageIds);
+        _selectedMessageIds.clear();
+      });
+    } else if (choice == 'everyone') {
+      // Delete messages from database so they disappear for both users
+      final idsToDelete = List<String>.from(_selectedMessageIds);
+      setState(() {
+        _selectedMessageIds.clear();
+      });
+
+      for (final id in idsToDelete) {
+        await _chatService.deleteMessage(widget.friend.uid, id);
+      }
+    } else {
+      // Cancel: just clear selection
+      setState(() {
+        _selectedMessageIds.clear();
+      });
+    }
   }
 
  //Scroll Helper
@@ -188,12 +249,12 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         actions: [
-          if (_selectedMessage != null)
+          if (_selectedMessageIds.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete),
               color: Colors.redAccent,
-              onPressed: _deleteSelectedMessage,
-              tooltip: 'Delete message for both',
+              onPressed: _showDeleteOptions,
+              tooltip: 'Delete selected messages',
             ),
         ],
       ),
@@ -219,7 +280,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   );
                 }
 
-                final messages = snapshot.data ?? [];
+                final allMessages = snapshot.data ?? [];
+                // Filter out locally "deleted for me" messages
+                final messages = allMessages
+                    .where((m) => !_locallyDeletedMessageIds.contains(m.messageId))
+                    .toList();
 
                 if (messages.isEmpty) {
                   return Center(
@@ -258,7 +323,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     final currentUser = FirebaseAuth.instance.currentUser;
                     final isMe = message.senderId == currentUser?.uid;
                     final bool isSelected =
-                        _selectedMessage?.messageId == message.messageId;
+                        _selectedMessageIds.contains(message.messageId);
 
                     // Group messages by date
                     bool showDateHeader = false;
@@ -297,8 +362,9 @@ class _ChatScreenState extends State<ChatScreen> {
                           onLongPress: () =>
                               _onMessageLongPress(message, isMe),
                           onTap: () {
-                            if (_selectedMessage != null) {
-                              _clearSelectedMessage();
+                            if (_selectedMessageIds.isNotEmpty) {
+                              // When in selection mode, tap toggles selection
+                              _onMessageLongPress(message, isMe);
                             }
                           },
                           child: _buildMessageBubble(message, isMe, isSelected),

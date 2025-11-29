@@ -358,6 +358,75 @@ class GroupService {
       print('Error marking read: $e');
     }
   }
+
+  // Delete a group message (only allows deleting own messages)
+  Future<void> deleteGroupMessage(String groupId, String messageId) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return;
+
+      // First, verify that the message belongs to the current user
+      final DatabaseEvent messageEvent = await _database
+          .child('group_messages/$groupId/messages/$messageId')
+          .once();
+
+      if (messageEvent.snapshot.value == null) {
+        print('Message not found: $messageId');
+        return;
+      }
+
+      final Map<String, dynamic> messageData =
+          Map<String, dynamic>.from(messageEvent.snapshot.value as Map);
+
+      // Security check: Only allow deleting own messages
+      if (messageData['senderId'] != currentUser.uid) {
+        print('Cannot delete message: User is not the sender');
+        return;
+      }
+
+      // Remove the message from the group messages
+      await _database
+          .child('group_messages/$groupId/messages/$messageId')
+          .remove();
+
+      // Update group's last message if the deleted message was the last one
+      final DatabaseEvent remainingMessagesEvent = await _database
+          .child('group_messages/$groupId/messages')
+          .orderByChild('timestamp')
+          .limitToLast(1)
+          .once();
+
+      if (remainingMessagesEvent.snapshot.value != null) {
+        final Map<dynamic, dynamic> remainingMessages =
+            remainingMessagesEvent.snapshot.value as Map<dynamic, dynamic>;
+
+        // There should be at most one entry due to limitToLast(1)
+        final entry = remainingMessages.entries.first;
+        final String lastMessageId = entry.key;
+        final Map<String, dynamic> lastMessageMap =
+            Map<String, dynamic>.from(entry.value);
+        lastMessageMap['messageId'] = lastMessageId;
+
+        final MessageModel lastMessage = MessageModel.fromJson(lastMessageMap);
+
+        await _database.child('groups/$groupId').update({
+          'lastMessage': lastMessage.message,
+          'lastMessageTime': lastMessage.timestamp.millisecondsSinceEpoch,
+          'lastMessageSenderId': lastMessage.senderId,
+        });
+      } else {
+        // No messages left in this group, clear the lastMessage fields
+        await _database.child('groups/$groupId').update({
+          'lastMessage': '',
+          'lastMessageTime': ServerValue.timestamp,
+          'lastMessageSenderId': '',
+        });
+      }
+    } catch (e) {
+      print('Error deleting group message: $e');
+      rethrow;
+    }
+  }
 }
 
 
